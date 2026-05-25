@@ -22,6 +22,7 @@ export UV_PROJECT_ENVIRONMENT="$VENV"
 apptainer exec --nv \
     --bind "$REPO:/workspace/robolab" \
     --bind /gscratch:/gscratch \
+    --bind /gscratch/weirdlab/sidhraja/projects/openpi:/workspace/openpi \
     --pwd /workspace/robolab \
     "$IMAGE" \
     bash -c '

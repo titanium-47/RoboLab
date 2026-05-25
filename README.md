@@ -157,3 +157,28 @@ The RoboLab framework is released under [CC-BY-NC-4.0](https://creativecommons.o
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for acknowledgements, issues, and how to contribute.
+
+## Robolab Hyak Installation
+1. Pull the isaaclab docker container with 
+`apptainer build robolab-isaaclab-2.2.0.sif docker://nvcr.io/nvidia/isaac-lab:2.2.0`
+2. Enter the docker container using `./run_apptainer.sh`
+3. Run uv sync to pull all the dependencies
+4. uv pip install -e ../openpi/packages/openpi-client
+
+
+## OpenPi Hyak Installation
+1. Pull openpi with `git clone --recurse-submodules git@github.com:Physical-Intelligence/openpi.git`
+2. Use openpi docker container (ask sid or marius)
+3. Enter the docker container and use uv sync to pull all the dependencies
+
+## Commands
+In open pi apptainer run
+```
+CUDA_VISIBLE_DEVICES=0 XLA_PYTHON_CLIENT_MEM_FRACTION=0.5   XLA_FLAGS="--xla_gpu_deterministic_ops=true"   uv run scripts/serve_policy.py policy:
+checkpoint       --policy.config=pi05_droid_jointpos_polaris       --policy.dir=gs://openpi-assets-simeval/pi05_droid_jointpos
+
+```
+In the robolab apptainer the following for a quick eval
+```
+CUDA_VISIBLE_DEVICES=0 uv run examples/policy/run_eval.py --policy pi05 --task BananaInBowlTask --num-envs 12 --headless
+```

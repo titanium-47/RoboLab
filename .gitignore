@@ -30,3 +30,9 @@ docs/doxygen/xml/*
 videos/
 *.code-workspace
 pyrightconfig.json
+
+# Apptainer image
+robolab-isaaclab-2.2.0.sif
+uv.lock
+# Claude code documentation
+CLAUDE.md

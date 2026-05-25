@@ -151,6 +151,7 @@ def run_episode(env, env_cfg, episode, client: InferenceClient, *, headless=Fals
                 get_world(env).visualize()
 
             timer.start("env_step")
+            breakpoint()
             obs, reward, term, trunc, info = env.step(actions)
             timer.stop("env_step")
 
