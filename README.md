@@ -94,6 +94,57 @@ python examples/policy/run_eval.py --policy pi05 --headless --enable-subtask
 python examples/policy/run_eval.py --policy pi05 --output-folder-name my_previous_run
 ```
 
+### Run as an environment server
+
+`server_main.py` wraps a single RoboLab task as a TCP environment server, exposing the `reset / step / restart / reflect / close` protocol over the wire. This is used when an external training loop (e.g. a reinforcement-learning trainer) drives the environment remotely instead of RoboLab running the episode itself.
+
+```bash
+# Start the env server for a single task (listens on 0.0.0.0:50051 by default)
+python examples/policy/server_main.py \
+    --policy pi05 \
+    --task BananaInBowlTask \
+    --num-envs 12 \
+    --headless
+
+# Custom server host/port
+python examples/policy/server_main.py \
+    --policy pi05 \
+    --task BananaInBowlTask \
+    --num-envs 12 \
+    --server-host 0.0.0.0 \
+    --server-port 50051 \
+    --headless
+
+# Control how many inner env steps the manager runs per outer step() call
+python examples/policy/server_main.py \
+    --policy pi05 \
+    --task BananaInBowlTask \
+    --num-envs 12 \
+    --num-inner-steps 100 \
+    --headless
+
+# Connect to a remote policy server
+python examples/policy/server_main.py \
+    --policy pi05 \
+    --task BananaInBowlTask \
+    --remote-host <policy-server-host> \
+    --remote-port 8000 \
+    --headless
+```
+
+**Key differences from `run_eval.py`:**
+
+| Option | `run_eval.py` | `server_main.py` |
+|---|---|---|
+| `--task` | Multiple tasks, iterates over each | Single task only |
+| `--tag` | Supported | Not supported |
+| `--num-runs` | Sequential runs per task | Not applicable (server runs until client disconnects) |
+| `--server-host` | N/A | Host to bind the env server on (default: `0.0.0.0`) |
+| `--server-port` | N/A | Port to bind the env server on (default: `50051`) |
+| `--num-inner-steps` | N/A | Env steps executed per outer `step()` call (default: `50`) |
+
+All other options (`--policy`, `--num-envs`, `--remote-host`, `--remote-port`, `--remote-uri`, `--open-loop-horizon`, `--headless`, `--output-folder-name`, DreamZero flags, etc.) are shared and behave identically.
+
 ## Documentation
 
 Full documentation is at **[docs/README.md](docs/README.md)**, covering:
@@ -174,11 +225,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for acknowledgements, issues, and how to 
 ## Commands
 In open pi apptainer run
 ```
-CUDA_VISIBLE_DEVICES=0 XLA_PYTHON_CLIENT_MEM_FRACTION=0.5   XLA_FLAGS="--xla_gpu_deterministic_ops=true"   uv run scripts/serve_policy.py policy:
-checkpoint       --policy.config=pi05_droid_jointpos_polaris       --policy.dir=gs://openpi-assets-simeval/pi05_droid_jointpos
+CUDA_VISIBLE_DEVICES=0 XLA_PYTHON_CLIENT_MEM_FRACTION=0.5   XLA_FLAGS="--xla_gpu_deterministic_ops=true"   uv run scripts/serve_policy.py policy:checkpoint       --policy.config=pi05_droid_jointpos_polaris       --policy.dir=gs://openpi-assets-simeval/pi05_droid_jointpos
 
 ```
 In the robolab apptainer the following for a quick eval
+```
+CUDA_VISIBLE_DEVICES=0 uv run examples/policy/run_eval.py --policy pi05 --task BananaInBowlTask --num-envs 12 --headless
+```
+
+To run server main do 
 ```
 CUDA_VISIBLE_DEVICES=0 uv run examples/policy/run_eval.py --policy pi05 --task BananaInBowlTask --num-envs 12 --headless
 ```

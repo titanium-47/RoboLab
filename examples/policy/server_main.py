@@ -116,8 +116,8 @@ from robolab.core.logging.results import init_experiment, summarize_experiment_r
 import robolab.constants # noqa
 
 # additional imports
-from .server import EnvServer
-from .env_manager import RobolabEnvManager
+from robolab.lamer.server import EnvServer
+from robolab.lamer.env_manager import RobolabEnvManager
 
 # Update robolab.constants module settings from command line arguments
 robolab.constants.ENABLE_SUBTASK_PROGRESS_CHECKING = args_cli.enable_subtask
@@ -179,9 +179,9 @@ def main():
             cam2_source=args_cli.dz_cam2,
         )
 
-    robolab_env_manager = RobolabEnvManager(env, client)
-    env_server = EnvServer(robolab_env_manager, args_cli.server_host, args_cli.server_port)
-    
+    robolab_env_manager = RobolabEnvManager(env, client, max_inner_steps=args_cli.num_inner_steps)
+    env_server = EnvServer(robolab_env_manager, host=args_cli.server_host, port=args_cli.server_port)
+
     env_server.serve()
     env.close()
     simulation_app.close()
