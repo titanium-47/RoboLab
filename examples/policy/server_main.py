@@ -34,6 +34,7 @@ Output:
 import argparse
 import cv2 # Must import this before isaaclab. Do not remove
 import os
+import signal
 import traceback
 import sys
 from isaaclab.app import AppLauncher
@@ -46,6 +47,8 @@ parser.add_argument("--num-envs", "--num_envs", type=int, default=1, help="Numbe
 AppLauncher.add_app_launcher_args(parser)
 parser.add_argument("--task", type=str, default=None,
                        help="List of tasks to evaluate on ")
+parser.add_argument("--tag", nargs='+', default=None,
+                       help="List of tags of tasks to evaluate on ")
 parser.add_argument("--task-dirs", nargs='+', default=DEFAULT_TASK_SUBFOLDERS,
                        help="List of task directories to evaluate on")
 parser.add_argument("--policy",
@@ -87,6 +90,8 @@ parser.add_argument("--server-host", "--server_host", type=str, default="0.0.0.0
                     help="Host for robolab env server (default: 0.0.0.0)")
 parser.add_argument("--num-inner-steps", "--num_inner_steps", type=int, default=50,
                     help="Number of inner steps for robolab env server (default: 50)")
+parser.add_argument("--max-turns", "--max_turns", type=int, default=1,
+                    help="Number of outer LaMer turns per episode (default: 1)")
 parser.add_argument("--remote-token", "--remote_token", type=str, default=None,
                     help="Bearer token for authenticated endpoints (e.g. Lepton). "
                          "Falls back to DREAMZERO_API_TOKEN env var.")
@@ -107,7 +112,6 @@ app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 from robolab.constants import PACKAGE_DIR, set_output_dir # noqa
-from robolab.core.environments.runtime import create_env # noqa
 from robolab.eval import create_client, run_episode, summarize_run # noqa
 from robolab.core.environments.factory import get_envs # noqa
 from robolab.core.utils.print_utils import print_experiment_summary # noqa
@@ -143,8 +147,15 @@ def main():
     output_dir = os.path.join(PACKAGE_DIR, "output", args_cli.output_folder_name)
     os.makedirs(output_dir, exist_ok=True)
 
-    task_envs = get_envs(task=args_cli.task)
-    filter_str = f"task: {args_cli.task}"
+    if args_cli.task:
+        task_envs = get_envs(task=args_cli.task)
+        filter_str = f"tasks: {', '.join(args_cli.task)}"
+    elif args_cli.tag:
+        task_envs = get_envs(tag=args_cli.tag)
+        filter_str = f"tags: {', '.join(args_cli.tag)}"
+    else:
+        task_envs = get_envs()
+        filter_str = "all"
 
     num_envs = args_cli.num_envs
     num_runs = args_cli.num_runs
@@ -160,12 +171,7 @@ def main():
         output_dir=output_dir,
     )
 
-    env, env_cfg = create_env(task_envs[0],
-            device=args_cli.device,
-            num_envs=num_envs,
-            use_fabric=True,
-            instruction_type=args_cli.instruction_type,
-            policy=args_cli.policy)
+    
     
     client = create_client(
             args_cli.policy,
@@ -179,11 +185,20 @@ def main():
             cam2_source=args_cli.dz_cam2,
         )
 
-    robolab_env_manager = RobolabEnvManager(env, client, max_inner_steps=args_cli.num_inner_steps)
+    robolab_env_manager = RobolabEnvManager(
+        task_envs,
+        client,
+        max_inner_steps=args_cli.num_inner_steps,
+        max_turns=args_cli.max_turns,
+        num_envs=args_cli.num_envs,
+        device=args_cli.device,
+        instruction_type=args_cli.instruction_type,
+        policy=args_cli.policy,
+    )
     env_server = EnvServer(robolab_env_manager, host=args_cli.server_host, port=args_cli.server_port)
 
+    signal.signal(signal.SIGINT, signal.default_int_handler)
     env_server.serve()
-    env.close()
     simulation_app.close()
 
 

@@ -15,6 +15,7 @@ import numpy as np
 import torch
 
 from robolab.eval import InferenceClient
+from robolab.core.environments.runtime import create_env
 
 logger = logging.getLogger(__name__)
 
@@ -40,27 +41,40 @@ class RobolabEnvManager:
 
     def __init__(
         self,
-        envs,
+        task_envs: List[str],
         client: InferenceClient,
         max_inner_steps: int = 50,
         num_attempts: int = 1,
         max_turns: int = 1,
         do_reflection: bool = False,
+        seed: int = 0,
+        num_envs: int = 1,
+        device: str = "cuda",
+        instruction_type: str = "default",
+        policy: str = "pi05",
     ):
-        self.envs = envs
+        self.task_envs = task_envs
+        self.envs = None
         self.client = client
         self.max_inner_steps = max_inner_steps
         self.num_attempts = num_attempts
         self.max_turns = max_turns
         self.do_reflection = do_reflection
-        self.num_processes = envs.num_envs
+        self._num_envs = num_envs
+        self._device = device
+        self._instruction_type = instruction_type
+        self._policy = policy
+        self._rng = np.random.default_rng(seed)
+        self._current_task_env: Optional[str] = None
+        # num_processes is set after the first env is created in reset()
+        self.num_processes = num_envs
 
         self.curr_traj_idx = 0
         self.curr_turn_idx = 0
 
         self._last_obs: Any = None
         self._last_infos: List[Dict] = [{} for _ in range(self.num_processes)]
-        self._instruction: str = self._get_instruction()
+        self._instruction: str = ""
 
     def _get_instruction(self) -> str:
         """Pull task instruction from env config, fallback to empty string."""
@@ -76,9 +90,29 @@ class RobolabEnvManager:
     def reset(self):
         """Reset all envs and return initial observations.
 
-        Double-reset pattern (same as run_episode): first seeds the simulation,
-        second yields the clean initial observation.
+        Samples a random task. If the task changed, closes the current env and
+        creates a new one. Otherwise calls reset_eval_state() to unfreeze envs
+        (same pattern as run_eval.py). Then double-resets: first seeds the
+        simulation, second yields the clean initial observation.
         """
+        task_env = self.task_envs[int(self._rng.integers(len(self.task_envs)))]
+
+        if task_env != self._current_task_env:
+            if self.envs is not None:
+                self.envs.close()
+            self.envs, _ = create_env(
+                task_env,
+                device=self._device,
+                num_envs=self._num_envs,
+                use_fabric=True,
+                instruction_type=self._instruction_type,
+                policy=self._policy,
+            )
+            self._current_task_env = task_env
+            self.num_processes = self.envs.num_envs
+        else:
+            self.envs.reset_eval_state()
+
         self.envs.reset()
         obs, _ = self.envs.reset()
 
@@ -107,6 +141,7 @@ class RobolabEnvManager:
     def restart(self):
         """Restart envs for the next meta-RL attempt."""
         self.envs.reset_eval_state()
+        self.envs.reset()
         obs, _ = self.envs.reset()
 
         self.curr_traj_idx += 1 if self.do_reflection else 0
@@ -333,7 +368,7 @@ class RobolabEnvManager:
             infos.append({
                 "is_action_valid": np.array(1.0),
                 "won": won,
-                "total_reward": float(rewards[env_id]),
+                "total_reward": 1.0 if won else float(rewards[env_id]),
                 "language_instruction": instruction,
             })
         return infos

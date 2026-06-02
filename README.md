@@ -225,15 +225,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for acknowledgements, issues, and how to 
 ## Commands
 In open pi apptainer run
 ```
-CUDA_VISIBLE_DEVICES=0 XLA_PYTHON_CLIENT_MEM_FRACTION=0.5   XLA_FLAGS="--xla_gpu_deterministic_ops=true"   uv run scripts/serve_policy.py policy:checkpoint       --policy.config=pi05_droid_jointpos_polaris       --policy.dir=gs://openpi-assets-simeval/pi05_droid_jointpos
+CUDA_VISIBLE_DEVICES=0 XLA_PYTHON_CLIENT_MEM_FRACTION=0.5   XLA_FLAGS="--xla_gpu_deterministic_ops=true"   uv run scripts/serve_policy.py  --port 4598 policy:checkpoint       --policy.config=pi05_droid_jointpos_polaris       --policy.dir=gs://openpi-assets-simeval/pi05_droid_jointpos
 
 ```
 In the robolab apptainer the following for a quick eval
 ```
-CUDA_VISIBLE_DEVICES=0 uv run examples/policy/run_eval.py --policy pi05 --task BananaInBowlTask --num-envs 12 --headless
+CUDA_VISIBLE_DEVICES=0 uv run examples/policy/run_eval.py --policy pi05 --task BananaInBowlTask --num-envs 12 --headless --remote-port 4598 
 ```
 
 To run server main do 
 ```
-CUDA_VISIBLE_DEVICES=0 uv run examples/policy/run_eval.py --policy pi05 --task BananaInBowlTask --num-envs 12 --headless
+CUDA_VISIBLE_DEVICES=0 uv run examples/policy/run_eval.py --policy pi05 --task BananaInBowlTask --num-envs 12 --headless --remote-port 4598 
 ```
