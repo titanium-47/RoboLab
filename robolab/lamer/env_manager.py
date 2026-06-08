@@ -16,6 +16,7 @@ import torch
 
 from robolab.eval import InferenceClient
 from robolab.core.environments.runtime import create_env
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ class RobolabEnvManager:
         device: str = "cuda",
         instruction_type: str = "default",
         policy: str = "pi05",
+        frame_subsample: int = 5,
     ):
         self.task_envs = task_envs
         self.envs = None
@@ -64,6 +66,7 @@ class RobolabEnvManager:
         self._device = device
         self._instruction_type = instruction_type
         self._policy = policy
+        self._frame_subsample = max(1, frame_subsample)
         self._rng = np.random.default_rng(seed)
         self._current_task_env: Optional[str] = None
         # num_processes is set after the first env is created in reset()
@@ -222,6 +225,14 @@ class RobolabEnvManager:
         batch = self.num_processes
         action_dim = self._get_action_dim()
         total_rewards = np.zeros(batch, dtype=np.float32)
+        frame_subsample = self._frame_subsample
+
+        all_frames = [[] for _ in range(batch)]
+        init_images = self._extract_images(self._last_obs)
+        if init_images is not None:
+            for env_id in range(batch):
+                if init_images[env_id] is not None:
+                    all_frames[env_id].append(init_images[env_id])
 
         # Reset per-env chunk state at the start of each new outer step so
         # the policy requests a fresh action chunk for the new goal/instruction.
@@ -256,6 +267,13 @@ class RobolabEnvManager:
 
             self._last_obs = obs
 
+            if (inner_step + 1) % frame_subsample == 0:
+                images = self._extract_images(obs)
+                if images is not None:
+                    for env_id in active_ids:
+                        if images[env_id] is not None:
+                            all_frames[env_id].append(images[env_id])
+
             # Accumulate reward only for envs that were active this step.
             rewards_np = self._to_numpy(rewards)
             active_mask = np.zeros(batch, dtype=bool)
@@ -282,6 +300,9 @@ class RobolabEnvManager:
             env_results=env_results,
             instructions=instructions,
         )
+        for env_id in range(batch):
+            self._last_infos[env_id]["frames"] = all_frames[env_id]
+
         self.curr_turn_idx += 1
 
         observations = self._build_observations(self._last_obs)
@@ -338,7 +359,7 @@ class RobolabEnvManager:
         return {
             "text": text_obs,
             "image": self._extract_images(obs),
-            "anchor": text_obs,
+            "anchor": [str(uuid.uuid4()) for _ in range(self.num_processes)],
             # Raw Isaac tensor dict is omitted to reduce serialization overhead.
             # Populate "state" here if the consuming LaMer client requires it.
             "state": None,
